@@ -5,14 +5,24 @@ services:
     environment:
       - POSTGRES_USER=root
       - POSTGRES_PASSWORD=root
-      - POSTGRES_DB=titanic
+      - POSTGRES_DB=green_taxi
     volumes:
-      - "./green_taxi_postgres:/var/lib/postgresql/data:rw"
+      - "./green_taxi_5_2018_postgres:/var/lib/postgresql/data:rw"
     ports:
       - "5432:5432"
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - "8080:80"
   ingest_database:
     build: .
     image: ingest_database:dew23
+    volumes:
+      - "./src:/src:rw"
+      - "./data:/data:rw"
     depends_on:
       - pgdatabase
     restart: on-failure

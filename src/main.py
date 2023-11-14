@@ -1,92 +1,40 @@
-# 1 - extraction
 import pandas as pd
 from scipy import stats
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-# For min_max scaling
 from sklearn.preprocessing import MinMaxScaler
-
-# For z-score scaling
-from sklearn.preprocessing import StandardScaler
-
-# For Label Encoding
 from sklearn import preprocessing
+# for geocoding
+from opencage.geocoder import OpenCageGeocode
+api_key = "e5370232998a4369b116891cd3297584"
+
+from functions import *
+
+# reading the csv file
 green_taxi_df = pd.read_csv('../data/green_tripdata_2018-05.csv')
 green_taxi_df_clean = green_taxi_df.copy()
-def rename_columns(df):
-#     make all cols lower case
-    df.columns = df.columns.str.lower()
-
-    df.columns = [col.replace(' ', '_') for col in df.columns]
-    
-
+## 1 - Data cleaning
+### Renaming columns
 rename_columns(green_taxi_df_clean)
 
-# Observe inconsistent data
-### duplicate data
-green_taxi_df_clean = green_taxi_df_clean.drop_duplicates(subset=['lpep_pickup_datetime', 'lpep_dropoff_datetime','pu_location', 'do_location','trip_distance'], keep='last')
-### irrelevant or incorrect data
-#keep only trips that happen in 2018
-green_taxi_df_clean['lpep_pickup_datetime'] = pd.to_datetime(green_taxi_df_clean['lpep_pickup_datetime'])
-green_taxi_df_clean['lpep_dropoff_datetime'] = pd.to_datetime(green_taxi_df_clean['lpep_dropoff_datetime'])
+### Observing and handling inconsistent and incorrect data
+green_taxi_df_clean = handle_inconsistent_incorrect(green_taxi_df_clean)
 
-green_taxi_df_clean = green_taxi_df_clean[(green_taxi_df_clean['lpep_pickup_datetime'].dt.year == 2018) & (green_taxi_df_clean['lpep_dropoff_datetime'].dt.year == 2018)]
-
-#keep only trips that happen in may
-green_taxi_df_clean = green_taxi_df_clean[(green_taxi_df_clean['lpep_pickup_datetime'].dt.month == 5)]
-#what defines a trip? here we remove any "trip" that has no distance, no fare, or no time or negative time
-green_taxi_df_clean = green_taxi_df_clean[green_taxi_df_clean.fare_amount > 0]
-green_taxi_df_clean =green_taxi_df_clean[green_taxi_df_clean.trip_distance > 0]
-green_taxi_df_clean = green_taxi_df_clean[green_taxi_df_clean.lpep_pickup_datetime < green_taxi_df_clean.lpep_dropoff_datetime]
-
-green_taxi_df_clean = green_taxi_df_clean[green_taxi_df_clean.passenger_count <= 10]
-## Observing and handling Missing Data
-### observing and handling placeholders
-green_taxi_df_clean = green_taxi_df_clean.drop(['ehail_fee', 'congestion_surcharge'], axis=1)
-
-#separate the PU Location and DO Location to boroughs and zones
-
-
-
-def extract_location_info(df):
-    # Split PU Location and DO Location into borough and zone
-    df["pu_location_borough"] = df["pu_location"].str.split(',').str[0]
-    df["pu_location_zone"] = df["pu_location"].str.split(',').str[1]
-    df["do_location_borough"] = df["do_location"].str.split(',').str[0]
-    df["do_location_zone"] = df["do_location"].str.split(',').str[1]
-    return df
-
-# Call the function to add borough and zone columns to your DataFrame
-
+### add borough and zone columns to DataFrame
 green_taxi_df_clean = extract_location_info(green_taxi_df_clean)
+### Observing and handling Missing Data and placeholders
+green_taxi_df_clean = handle_missing_unknown(green_taxi_df_clean)
 
-green_taxi_df_clean = green_taxi_df_clean[(green_taxi_df_clean["pu_location_borough"]!= "Unknown") &(green_taxi_df_clean["do_location_borough"]!= "Unknown")]
-#if payment type is unknown and tip amount is 0 then payment type is cash
-#if payment type is unknown and tip amount is not 0 then payment type is credit card
-#also handle nulls
-def replace_unknown_payment_type(df):
-    for index, row in df.iterrows():
-        if pd.isnull(row['payment_type']) or row['payment_type'] == 'Uknown':
-            if row['tip_amount'] == 0:
-                df.at[index, 'payment_type'] = 'Cash'
-            else:
-                df.at[index, 'payment_type'] = 'Credit card'
+### Observing outliers
+## passenger_count
+def handle_passenger_count_outliers(df):
+    df = df[df.passenger_count <= 6]
     return df
-
-green_taxi_df_clean = replace_unknown_payment_type(green_taxi_df_clean)
-
-## Handling Missing data
-green_taxi_df_clean["extra_imp"] = green_taxi_df_clean["extra"].fillna(0)
-## Observing outliers
-## vendor
-green_taxi_df_clean_outliers = green_taxi_df_clean[green_taxi_df_clean.passenger_count <= 6]
-green_taxi_df_clean_outliers["passenger_count"] = green_taxi_df_clean_outliers["passenger_count"].astype(int)
+green_taxi_df_clean = handle_passenger_count_outliers(green_taxi_df_clean)
 ## Trip_distance
-green_taxi_df_clean_outliers = green_taxi_df_clean_outliers[green_taxi_df_clean_outliers['trip_distance'] < 100]
 def handle_trip_distance_outliers(df):
     # Calculate Z-scores for the specified column
-    z = np.abs(stats.zscore(green_taxi_df_clean['trip_distance']))
+    df = df[df['trip_distance'] < 100]
+    z = np.abs(stats.zscore(df['trip_distance']))
     filtered_entries = z < 3.5
     
     # Impute outliers with the maximum value within Z-score threshold
@@ -95,12 +43,12 @@ def handle_trip_distance_outliers(df):
     df.loc[~filtered_entries, "trip_distance_imputed"] = max_within_threshold
     
     return df
-green_taxi_df_clean_outliers = handle_trip_distance_outliers(green_taxi_df_clean_outliers)
+green_taxi_df_clean = handle_trip_distance_outliers(green_taxi_df_clean)
 
 ## fare_amount
 def handle_fare_amount_outliers(df):
     # Calculate Z-scores for the specified column
-    z = np.abs(stats.zscore(green_taxi_df_clean['fare_amount']))
+    z = np.abs(stats.zscore(df['fare_amount']))
     filtered_entries = z < 3.5
     
     # Impute outliers with the maximum value within Z-score threshold
@@ -109,7 +57,7 @@ def handle_fare_amount_outliers(df):
     df.loc[~filtered_entries, "fare_amount_imputed"] = max_within_threshold
     
     return df
-green_taxi_df_clean_outliers = handle_fare_amount_outliers(green_taxi_df_clean_outliers)
+green_taxi_df_clean = handle_fare_amount_outliers(green_taxi_df_clean)
 ## tip_amount
 def handle_tip_amount_iqr(df):
     # Calculate the IQR (Interquartile Range)
@@ -128,7 +76,7 @@ def handle_tip_amount_iqr(df):
     df.loc[outliers_mask, "tip_amount"] = upper_limit
     
     return df
-green_taxi_df_clean_outliers = handle_tip_amount_iqr(green_taxi_df_clean_outliers)
+green_taxi_df_clean = handle_tip_amount_iqr(green_taxi_df_clean)
 
 ## tolls_amount
 def handle_tolls_amount(df):
@@ -145,12 +93,12 @@ def handle_tolls_amount(df):
     
     return df
 
-green_taxi_df_clean_outliers = handle_tolls_amount(green_taxi_df_clean_outliers)
+green_taxi_df_clean = handle_tolls_amount(green_taxi_df_clean)
 
 ## total_amount
 def handle_total_amount_outliers(df):
     # Calculate Z-scores for the specified column
-    z = np.abs(stats.zscore(green_taxi_df_clean['total_amount']))
+    z = np.abs(stats.zscore(df['total_amount']))
     filtered_entries = z < 3.5
     
     # Impute outliers with the maximum value within Z-score threshold
@@ -158,11 +106,10 @@ def handle_total_amount_outliers(df):
     df.loc[~filtered_entries, "total_amount"] = max_within_threshold
     
     return df
-green_taxi_df_clean_outliers = handle_total_amount_outliers(green_taxi_df_clean_outliers)
+green_taxi_df_clean = handle_total_amount_outliers(green_taxi_df_clean)
 
 # 4 - Data transformation and feature eng.
 ## 4.1 - Discretization
-green_taxi_df_clean_outliers_engineered = green_taxi_df_clean_outliers.copy()
 def generate_date_features(df):
     # Create 'week_number' column
     df['week_number'] = df["lpep_pickup_datetime"].dt.isocalendar().week
@@ -173,7 +120,7 @@ def generate_date_features(df):
     return df
 
 
-green_taxi_df_clean_outliers_engineered = generate_date_features(green_taxi_df_clean_outliers_engineered)
+green_taxi_df_clean = generate_date_features(green_taxi_df_clean)
 
 ## 4.2 - Adding more features(feature eng.)
 def generate_time_features(df):
@@ -184,11 +131,10 @@ def generate_time_features(df):
     df['is_night'] = (df["lpep_pickup_datetime"].dt.hour < 6) | (df["lpep_pickup_datetime"].dt.hour >= 20)
     
     return df
-green_taxi_df_clean_outliers_engineered = generate_time_features(green_taxi_df_clean_outliers_engineered)
+green_taxi_df_clean = generate_time_features(green_taxi_df_clean)
 
 
-green_taxi_df_clean_outliers_engineered["pick_up_hour"] = pd.to_datetime(green_taxi_df_clean_outliers_engineered["lpep_pickup_datetime"]).dt.hour
-green_taxi_df_clean_outliers_engineered["drop_off_hour"] = pd.to_datetime(green_taxi_df_clean_outliers_engineered["lpep_dropoff_datetime"]).dt.hour
+
 ## 4.3 - Encoding
 
 def encode_features(df):
@@ -208,7 +154,7 @@ def encode_features(df):
 
     return result
 
-green_taxi_df_clean_outliers_engineered_encoded = encode_features(green_taxi_df_clean_outliers_engineered)
+green_taxi_df_clean = encode_features(green_taxi_df_clean)
 
 ## 4.4 - Normalisation 
 def scale_features(df):
@@ -220,12 +166,9 @@ def scale_features(df):
     
     return result
 
-green_taxi_df_clean_outliers_engineered_encoded_scaled = scale_features(green_taxi_df_clean_outliers_engineered_encoded)
+green_taxi_df_clean = scale_features(green_taxi_df_clean)
 ## 4.5 - Additional data extraction (GPS coordinates)
-from opencage.geocoder import OpenCageGeocode
 
-# Replace 'YOUR_API_KEY' with your actual OpenCage Geocoding API key
-api_key = "e5370232998a4369b116891cd3297584"
 
 def get_unique_coordinates(unique_locations):
     geocoder = OpenCageGeocode(api_key)
@@ -258,8 +201,8 @@ def add_coordinates_to_dataframe(df):
 
     return df
 
-green_taxi_df_clean_outliers_engineered_encoded_scaled_with_coordinates = add_coordinates_to_dataframe(green_taxi_df_clean_outliers_engineered_encoded_scaled)
+green_taxi_df_clean = add_coordinates_to_dataframe(green_taxi_df_clean)
 
 
 ## 5- Exporting the dataframe to a csv file or parquet
-green_taxi_df_clean_outliers_engineered_encoded_scaled_with_coordinates.to_csv('../dataset/cleaned_data.csv',index=False)
+green_taxi_df_clean.to_csv('../dataset/cleaned_data.csv',index=False)
