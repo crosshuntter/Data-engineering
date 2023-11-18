@@ -74,7 +74,5 @@ else:
 
 try:
     green_taxi_df_clean.to_sql(name='green_taxi_5_2018', con=engine, if_exists='fail', index=False)
-except IntegrityError:
-    print("Table 'green_taxi_5_2018' already exists in the database.")
 except Exception as e:
-      print(f"An error occurred: {e}")
+      print(f"{e}")
