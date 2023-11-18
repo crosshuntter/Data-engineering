@@ -1,8 +1,12 @@
 import os
 
+import os
+
 import pandas as pd
 # for geocoding
 from opencage.geocoder import OpenCageGeocode
+from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 api_key = "e5370232998a4369b116891cd3297584"
@@ -21,12 +25,24 @@ else:
 
     ### Observing and handling inconsistent and incorrect data
     green_taxi_df_clean = handle_inconsistent_incorrect(green_taxi_df_clean)
+    ### Observing and handling inconsistent and incorrect data
+    green_taxi_df_clean = handle_inconsistent_incorrect(green_taxi_df_clean)
 
     ### add borough and zone columns to DataFrame
     green_taxi_df_clean = extract_location_info(green_taxi_df_clean)
     ### Observing and handling Missing Data and placeholders
     green_taxi_df_clean = handle_missing_unknown(green_taxi_df_clean)
+    ### add borough and zone columns to DataFrame
+    green_taxi_df_clean = extract_location_info(green_taxi_df_clean)
+    ### Observing and handling Missing Data and placeholders
+    green_taxi_df_clean = handle_missing_unknown(green_taxi_df_clean)
 
+    ### Observing outliers
+    ## passenger_count
+    green_taxi_df_clean = handle_passenger_count_outliers(green_taxi_df_clean)
+
+    ## Trip_distance
+    green_taxi_df_clean = handle_trip_distance_outliers(green_taxi_df_clean)
     ### Observing outliers
     ## passenger_count
     green_taxi_df_clean = handle_passenger_count_outliers(green_taxi_df_clean)
@@ -39,23 +55,44 @@ else:
 
     ## tip_amoun
     green_taxi_df_clean = handle_tip_amount_iqr(green_taxi_df_clean)
+    ## fare_amount
+    green_taxi_df_clean = handle_fare_amount_outliers(green_taxi_df_clean)
+
+    ## tip_amoun
+    green_taxi_df_clean = handle_tip_amount_iqr(green_taxi_df_clean)
 
     ## tolls_amount
     green_taxi_df_clean = handle_tolls_amount(green_taxi_df_clean)
+    ## tolls_amount
+    green_taxi_df_clean = handle_tolls_amount(green_taxi_df_clean)
 
+    ## total_amount
+    green_taxi_df_clean = handle_total_amount_outliers(green_taxi_df_clean)
     ## total_amount
     green_taxi_df_clean = handle_total_amount_outliers(green_taxi_df_clean)
 
     # 4 - Data transformation and feature eng.
     ## 4.1 - Discretization
     green_taxi_df_clean = generate_date_features(green_taxi_df_clean)
+    # 4 - Data transformation and feature eng.
+    ## 4.1 - Discretization
+    green_taxi_df_clean = generate_date_features(green_taxi_df_clean)
 
+    ## 4.2 - Adding more features(feature eng.)
+    green_taxi_df_clean = generate_time_features(green_taxi_df_clean)
     ## 4.2 - Adding more features(feature eng.)
     green_taxi_df_clean = generate_time_features(green_taxi_df_clean)
 
     ## 4.3 - Encoding
     green_taxi_df_clean = encode_features(green_taxi_df_clean)
+    ## 4.3 - Encoding
+    green_taxi_df_clean = encode_features(green_taxi_df_clean)
 
+    ## 4.4 - Normalisation 
+    # green_taxi_df_clean = scale_features(green_taxi_df_clean)
+
+    ## 4.5 - Additional data extraction (GPS coordinates)
+    # green_taxi_df_clean = add_coordinates_to_dataframe(green_taxi_df_clean)
     ## 4.4 - Normalisation 
     # green_taxi_df_clean = scale_features(green_taxi_df_clean)
 
