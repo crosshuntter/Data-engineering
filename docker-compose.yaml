@@ -7,7 +7,8 @@ services:
       - POSTGRES_PASSWORD=root
       - POSTGRES_DB=green_taxi
     volumes:
-      - "./green_taxi_5_2018_postgres:/var/lib/postgresql/data:rw"
+      - "green_taxi_5_2018_postgres:/var/lib/postgresql/data:rw"
+      - "./m2_queries:/var/lib/m2_queries:rw"
     ports:
       - "5432:5432"
   pgadmin:
@@ -26,4 +27,6 @@ services:
     depends_on:
       - pgdatabase
     restart: on-failure
+volumes:
+  green_taxi_5_2018_postgres:
     
